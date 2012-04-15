@@ -1,0 +1,251 @@
+#!/usr/bin/perl
+# psgrep - greps process list
+
+use warnings;
+use strict;
+
+use List::Util qw/max/;
+use List::MoreUtils qw/uniq/;
+use Data::Dumper;
+
+use Getopt::Long qw/:config posix_default bundling no_ignore_case/;
+use Pod::Usage;
+
+my %options;
+GetOptions(
+    \%options,
+    'help|h',
+    'man',
+) or pod2usage(-verbose => 1);
+
+pod2usage(-verbose => 1) if $options{'help'};
+pod2usage(-verbose => 2) if $options{'man'};
+
+=head1 NAME
+
+scriptname - does something
+
+=head1 SYNOPSIS
+
+scriptname [--help|--man]
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<--help>
+
+Prints a usage and options summary.
+
+=item B<--man>
+
+Displays the manual.
+
+=back
+
+=head1 DESCRIPTION
+
+Right now, I think it just prints "Hello, world!".
+
+=head1 DIAGNOSTICS
+
+None.
+
+=head1 BUGS
+
+None, obviously.
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item TMPDIR
+
+All your data goes here.
+
+=back
+
+=head1 AUTHOR
+
+Copyright 2012 Aaron Hall.
+
+=cut
+
+my $COMPARISON_OPS = qr/(?:[<>=]|\s(?:eq|ne)\s)/;
+
+# get our operations
+sub main {
+    my @ops = get_ops_from_args(@ARGV);
+
+    my @keywords = map { $_->[0] } @ops;
+
+    # command & pid will always be there; put them up front for uniq
+    unshift @keywords, 'command', 'pid';
+    @keywords = uniq(@keywords);
+
+    # now move command to the end (yeah, I'm being fancy for no reason)
+    push @keywords, shift @keywords;
+    
+    # now call ps
+    my @ps_lines  = run_ps(@keywords);
+    my @processes = grep_ps(\@keywords, \@ops, @ps_lines);
+
+    # build a format string
+    # grep_ps() stashed the lengths at the end of @processes
+    my $lengths_ref = pop(@processes);
+    my $format_str = build_format_str(%{$lengths_ref});
+
+    # if there's only a header line, exit
+    exit 0 if scalar @processes == 1;
+
+    foreach my $proc_ref (@processes) {
+        print_formatted($format_str, $proc_ref);
+    }
+}
+
+
+sub get_ops_from_args {
+    my @args = @_;
+
+    if (@args == 1) {
+        # one arg, could be a keyword-op-value or just a regex match
+        # try to DWIM
+        my $arg = $args[0];
+        if ($arg =~ m[^/(.+)/([ixgc]*)]) {
+            # if it looks like a /regex/, treat it as one
+            my ($re, $flags) = ($1, $2);
+            return([ command => "=~ m/$re/$flags" ]);
+        }
+        elsif ($arg !~ $COMPARISON_OPS) {
+            return([ command => "=~ m/$arg/" ]);
+        }
+        else {
+            # continue into the multi-arg parser below
+        }
+    }
+
+    my @ops;
+    foreach my $arg (@args) {
+        # here, we look for keyword+everything-else
+        if ($arg =~ /^(\w+)(\W.+)$/) {
+            my ($keyword, $rest) = ($1, $2);
+            if ($rest =~ /^\s*=\s*\d/) {
+                die "error: = should be == in '${keyword}${rest}'\n";
+            }
+            push @ops, [ $keyword, $rest ];
+        }
+        else {
+            die "can't understand $arg\n";
+        }
+    }
+
+    return(@ops);
+}
+
+
+sub run_ps {
+    my @keywords = @_;
+    my $kw_str = join(',', @keywords);
+
+    open my $ps_fh, '-|', "ps", "ax", "-o${kw_str}" or die "can't run ps, exiting\n";
+    my @lines = (<$ps_fh>);
+    close $ps_fh;
+    return @lines;
+}
+
+
+# takes a list of lines from ps output and returns an array of hashrefs
+sub grep_ps {
+    my @keywords = @{shift(@_)};
+    my @ops      = @{shift(@_)};
+    my @ps_lines = @_;
+
+    # build the perl to do the evaluations
+    my $perl_eval;
+    OP: foreach my $op_ref (@ops) {
+        my ($keyword, $op) = @{$op_ref};
+        $perl_eval .= ' && ' if $perl_eval;
+        $perl_eval .= "(\$fields{" . $keyword . "} $op)";
+    }
+
+    #read the first line
+    my $num_keywords = scalar @keywords;
+    my %lengths;
+    my @selected;
+    my $line_num = 0;
+    PROCESS: foreach my $line (@ps_lines) {
+        chomp $line;
+        $line_num++;
+
+        my %fields;
+        @fields{@keywords} = split(' ', $line, $num_keywords);
+
+        if ($line_num == 1) {
+            tally_lengths(\%lengths, \%fields);
+            my @headers = map { uc $_ } @keywords;
+            push @selected, { '.array' => \@headers };
+            next PROCESS;
+        }
+
+        # skip ourselves
+        next PROCESS if $fields{'pid'} == $$;
+
+        if (eval "$perl_eval") {
+            # we've got a match, record it
+            tally_lengths(\%lengths, \%fields);
+            $fields{'.array'} = [ @fields{@keywords} ];
+            push @selected, \%fields;
+        }
+        else {
+            if ($@) {
+                die "psgrep failed (line $line_num): $@";
+            }
+        }
+    }
+
+    $lengths{'.array'} = [ @lengths{@keywords} ];
+    push @selected, \%lengths; # being lazy
+    return(@selected);
+}
+
+
+sub tally_lengths {
+    my $lengths_ref = shift;
+    my $fields_ref  = shift;
+
+    no warnings 'uninitialized';
+    foreach my $field (keys %{$fields_ref}) {
+        $lengths_ref->{$field} = max(
+            $lengths_ref->{$field},
+            length($fields_ref->{$field}),
+        );
+    }
+}
+
+
+sub build_format_str {
+    my %len_hash = @_;
+    my @lengths  = @{$len_hash{'.array'}};
+
+    my $str;
+    # build a string based on the lengths of all but the last field
+    for (my $i = 0; $i <= ($#lengths - 1); $i++) {
+        my $len = $lengths[$i];
+        $str .= "%-${len}s ";
+    }
+
+    # no length specifier on the last field
+    $str .= "%s\n";
+    return $str;
+}
+
+
+sub print_formatted {
+    my $format_str = shift;
+    my $proc_ref   = shift;
+
+    printf $format_str, @{$proc_ref->{'.array'}};
+}
+
+
+main();

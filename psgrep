@@ -11,15 +11,17 @@ use Data::Dumper;
 use Getopt::Long qw/:config posix_default bundling no_ignore_case/;
 use Pod::Usage;
 
-my %options;
+my $LONG_FORMAT;
+my $PID_ONLY;
+my $help_level;
 GetOptions(
-    \%options,
-    'help|h',
-    'man',
+    'long|f'    => \$LONG_FORMAT,
+    'pid|p'     => \$PID_ONLY,
+    'help|h'    => sub { $help_level = 1 },
+    'man',      => sub { $help_level = 2 },
 ) or pod2usage(-verbose => 1);
 
-pod2usage(-verbose => 1) if $options{'help'};
-pod2usage(-verbose => 2) if $options{'man'};
+pod2usage(-verbose => $help_level) if $help_level;
 
 =head1 NAME
 

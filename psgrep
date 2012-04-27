@@ -78,6 +78,7 @@ my $COMPARISON_OPS = qr/(?:[<>=]|\s(?:eq|ne)\s)/;
 # get our operations
 sub main {
     my @ops = get_ops_from_args(@ARGV);
+    die "error: no arguments\n" unless @ops;
 
     my @keywords = map { $_->[0] } @ops;
 

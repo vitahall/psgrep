@@ -193,7 +193,14 @@ sub grep_ps {
         # skip ourselves
         next PROCESS if $fields{'pid'} == $$;
 
-        if (eval "$perl_eval") {
+        my $ok;
+        {
+            no strict;
+            no warnings qw/uninitialized once/;
+            $ok = eval "$perl_eval";
+        }
+
+        if ($ok) {
             # we've got a match, record it
             tally_lengths(\%lengths, \%fields);
             $fields{'.array'} = [ @fields{@keywords} ];

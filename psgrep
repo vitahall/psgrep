@@ -99,19 +99,20 @@ sub main {
     # now call ps
     my @processes = grep_ps(\@keywords, \@ops);
 
+    my $lengths_ref = pop(@processes);   # pop the lengths off the end
+    my $headers_ref = shift(@processes); # and the headers off the front
+
+    # exit if there are no actual processes
+    exit 0 unless scalar(@processes);
+
     # build a format string
     if ($PID_ONLY) {
         @keywords = ('pid');
-        shift @processes; # remove headers at start of @processes
+        undef $headers_ref;
     }
-    # grep_ps() stashed the lengths at the end of @processes
-    my $lengths_ref = pop(@processes);
     my $format_str = build_format_str(\@keywords, $lengths_ref);
 
-    # if there's only a header line, exit
-    exit 0 if scalar @processes == 1;
-
-    foreach my $proc_ref (@processes) {
+    foreach my $proc_ref ($headers_ref, @processes) {
         print_formatted($format_str, \@keywords, $proc_ref);
     }
 }
@@ -276,6 +277,8 @@ sub print_formatted {
     my $format_str = shift;
     my $keys_ref   = shift;
     my $proc_ref   = shift;
+
+    return unless $proc_ref;
 
     my @keywords = @{$keys_ref};
     my %process  = %{$proc_ref};

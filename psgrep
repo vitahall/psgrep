@@ -101,6 +101,10 @@ sub main {
     my @processes = grep_ps(\@keywords, \@ops, @ps_lines);
 
     # build a format string
+    if ($PID_ONLY) {
+        @keywords = ('pid');
+        shift @processes; # remove headers at start of @processes
+    }
     # grep_ps() stashed the lengths at the end of @processes
     my $lengths_ref = pop(@processes);
     my $format_str = build_format_str(\@keywords, $lengths_ref);

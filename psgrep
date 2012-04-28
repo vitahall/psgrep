@@ -103,13 +103,13 @@ sub main {
     # build a format string
     # grep_ps() stashed the lengths at the end of @processes
     my $lengths_ref = pop(@processes);
-    my $format_str = build_format_str(%{$lengths_ref});
+    my $format_str = build_format_str(\@keywords, $lengths_ref);
 
     # if there's only a header line, exit
     exit 0 if scalar @processes == 1;
 
     foreach my $proc_ref (@processes) {
-        print_formatted($format_str, $proc_ref);
+        print_formatted($format_str, \@keywords, $proc_ref);
     }
 }
 
@@ -155,6 +155,7 @@ sub get_ops_from_args {
 
 sub run_ps {
     my @keywords = @_;
+
     my $kw_str = join(',', @keywords);
 
     open my $ps_fh, '-|', "ps", "ax", "-o${kw_str}" or die "can't run ps, exiting\n";
@@ -192,14 +193,15 @@ sub grep_ps {
 
         if ($line_num == 1) {
             tally_lengths(\%lengths, \%fields);
-            my @headers = map { uc $_ } @keywords;
-            push @selected, { '.array' => \@headers };
+
+            # create a faux process record with the headers and lengths
+            my %proc_ref;
+            @proc_ref{@keywords} = map { uc $_ } @keywords;
+            push @selected, \%proc_ref;
             next PROCESS;
         }
 
-        # skip ourselves
-        next PROCESS if $fields{'pid'} == $$;
-
+        # run the eval
         my $ok;
         {
             no strict;
@@ -210,7 +212,6 @@ sub grep_ps {
         if ($ok) {
             # we've got a match, record it
             tally_lengths(\%lengths, \%fields);
-            $fields{'.array'} = [ @fields{@keywords} ];
             push @selected, \%fields;
         }
         else {
@@ -220,7 +221,6 @@ sub grep_ps {
         }
     }
 
-    $lengths{'.array'} = [ @lengths{@keywords} ];
     push @selected, \%lengths; # being lazy
     return(@selected);
 }
@@ -241,13 +241,14 @@ sub tally_lengths {
 
 
 sub build_format_str {
-    my %len_hash = @_;
-    my @lengths  = @{$len_hash{'.array'}};
+    my @keywords = @{shift(@_)};
+    my %lengths  = %{shift(@_)};
 
     my $str;
     # build a string based on the lengths of all but the last field
-    for (my $i = 0; $i <= ($#lengths - 1); $i++) {
-        my $len = $lengths[$i];
+    for (my $i = 0; $i <= ($#keywords - 1); $i++) {
+        my $key = $keywords[$i];
+        my $len = $lengths{$key};
         $str .= "%-${len}s ";
     }
 
@@ -259,9 +260,13 @@ sub build_format_str {
 
 sub print_formatted {
     my $format_str = shift;
+    my $keys_ref   = shift;
     my $proc_ref   = shift;
 
-    printf $format_str, @{$proc_ref->{'.array'}};
+    my @keywords = @{$keys_ref};
+    my %process  = %{$proc_ref};
+
+    printf $format_str, @process{@keywords};
 }
 
 

@@ -203,12 +203,12 @@ sub select_ps_lines {
         @fields{@keywords} = split(' ', $line, $num_keywords);
 
         if ($line_num == 1) {
-            tally_lengths(\%lengths, \%fields);
-
             # create a faux process record with the headers and lengths
-            my %proc_ref;
-            @proc_ref{@keywords} = map { uc $_ } @keywords;
-            push @selected, \%proc_ref;
+            my %headers;
+            @headers{@keywords} = map { uc $_ } @keywords;
+            push @selected, \%headers;
+
+            tally_lengths(\%lengths, \%headers);
             next PROCESS;
         }
 

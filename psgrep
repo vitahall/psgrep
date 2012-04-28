@@ -23,6 +23,8 @@ GetOptions(
 
 pod2usage(-verbose => $help_level) if $help_level;
 
+my @LONG_KEYWORDS = qw/uid pid ppid stat tty time command/;
+
 =head1 NAME
 
 scriptname - does something
@@ -82,11 +84,16 @@ sub main {
 
     my @keywords = map { $_->[0] } @ops;
 
+    # -f given
+    if ($LONG_FORMAT) {
+        @keywords = (@keywords, @LONG_KEYWORDS);
+    }
+
     # command & pid will always be there; put them up front for uniq
     unshift @keywords, 'command', 'pid';
     @keywords = uniq(@keywords);
 
-    # now move command to the end (yeah, I'm being fancy for no reason)
+    # now move 'command' to the end (yeah, I'm being fancy for no reason)
     push @keywords, shift @keywords;
     
     # now call ps

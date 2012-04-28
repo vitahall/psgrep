@@ -97,8 +97,7 @@ sub main {
     push @keywords, shift @keywords;
     
     # now call ps
-    my @ps_lines  = run_ps(@keywords);
-    my @processes = grep_ps(\@keywords, \@ops, @ps_lines);
+    my @processes = grep_ps(\@keywords, \@ops);
 
     # build a format string
     if ($PID_ONLY) {
@@ -168,9 +167,17 @@ sub run_ps {
     return @lines;
 }
 
+sub grep_ps {
+    my @keywords = @{shift(@_)};
+    my @ops      = @{shift(@_)};
+
+    unshift @keywords, 'ppid';  # needed in select_ps_lines
+    my @ps_lines = run_ps(@keywords);
+    return select_ps_lines(\@keywords, \@ops, @ps_lines);
+}
 
 # takes a list of lines from ps output and returns an array of hashrefs
-sub grep_ps {
+sub select_ps_lines {
     my @keywords = @{shift(@_)};
     my @ops      = @{shift(@_)};
     my @ps_lines = @_;
@@ -204,6 +211,9 @@ sub grep_ps {
             push @selected, \%proc_ref;
             next PROCESS;
         }
+
+        # ignore ourselves
+        next PROCESS if $fields{'pid'} == $$ or $fields{'ppid'} == $$;
 
         # run the eval
         my $ok;

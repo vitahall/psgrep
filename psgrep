@@ -143,9 +143,12 @@ sub get_ops_from_args {
         # here, we look for keyword+everything-else
         if ($arg =~ /^(\w+)(\W.+)$/) {
             my ($keyword, $rest) = ($1, $2);
+            # throw out bare =
             if ($rest =~ /^\s*=\s*\d/) {
                 die "error: = should be == in '${keyword}${rest}'\n";
             }
+            # DWIM: autoquote bareword in eq or ne
+            $rest =~ s/^(\s*(?:eq|ne)\s+)(\S+)$/$1"$2"/;
             push @ops, [ $keyword, $rest ];
         }
         else {

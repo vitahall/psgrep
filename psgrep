@@ -75,7 +75,7 @@ Copyright 2012 Aaron Hall.
 
 =cut
 
-my $COMPARISON_OPS = qr/(?:[<>=]|\s(?:eq|ne)\s)/;
+my $COMPARISON_OPS = qr/(?:[<>=]|\s(?:eq|ne)\s|[!=]~)/;
 
 # get our operations
 sub main {

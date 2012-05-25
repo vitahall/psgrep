@@ -94,7 +94,7 @@ sub main {
 
     # now move 'command' to the end (yeah, I'm being fancy for no reason)
     push @keywords, shift @keywords;
-    
+
     # now call ps
     my @processes = grep_ps(\@keywords, \@ops);
 

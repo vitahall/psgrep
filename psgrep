@@ -29,7 +29,7 @@ my $COMPARISON_OPS = qr/(?:[<>=]|\s(?:eq|ne)\s|[!=]~)/;
 # get our operations
 sub main {
     my @ops = get_ops_from_args(@ARGV);
-    die "error: no arguments\n" unless @ops;
+    pod2usage("error: no arguments") unless @ops;
 
     my @keywords = map { $_->[0] } @ops;
 
@@ -94,14 +94,14 @@ sub get_ops_from_args {
             my ($keyword, $rest) = ($1, $2);
             # throw out bare =
             if ($rest =~ /^\s*=\s*\d/) {
-                die "error: = should be == in '${keyword}${rest}'\n";
+                die "psgrep: single = should be == in '${keyword}${rest}'\n";
             }
             # DWIM: autoquote bareword in eq or ne
             $rest =~ s/^(\s*(?:eq|ne)\s+)(\S+)$/$1"$2"/;
             push @ops, [ $keyword, $rest ];
         }
         else {
-            die "can't understand $arg\n";
+            die "psgrep: can't understand $arg\n";
         }
     }
 
@@ -115,7 +115,7 @@ sub run_ps {
     my $kw_str = join(',', @keywords);
 
     open my $ps_fh, '-|', "ps", "ax", "-o${kw_str}"
-      or die "can't run ps, exiting\n";
+      or die "psgrep: can't run ps, exiting\n";
     my @lines = (<$ps_fh>);
     close $ps_fh;
     return @lines;
@@ -184,7 +184,7 @@ sub select_ps_lines {
         }
         else {
             if ($@) {
-                die "psgrep failed (line $line_num): $@";
+                die "psgrep: perl error (line $line_num): $@";
             }
         }
     }
@@ -257,7 +257,7 @@ psgrep - search for processes matching given criteria
 
 =head1 SYNOPSIS
 
-psgrep [-pf] OPERATION ...
+psgrep [--help|--man] [-pf] OPERATION ...
 
 =head1 OPTIONS
 
@@ -386,7 +386,7 @@ should look like C<FIELD operator OPERAND>. In particular, I<FIELD> must
 be an alphanumeric string, and I<operator> must be one of the operators
 given above.
 
-=item "error: = should be == in '<ARG>'"
+=item "single = should be == in '<ARG>'"
 
 You must say:
 
@@ -397,7 +397,7 @@ You must say:
 For some reason, B<psgrep> couldn't find or execute your B<ps>
 program. Maybe the PATH isn't set up right?
 
-=item "psgrep failed (line <NUM>): <some perl error>"
+=item "perl error (line <NUM>): <some perl error>"
 
 Something you passed made Perl's compiler die. This can happen if your
 operand isn't something perl recognizes. (The operand is not parsed by

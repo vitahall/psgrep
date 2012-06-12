@@ -24,56 +24,6 @@ pod2usage(-verbose => $help_level) if $help_level;
 
 my @LONG_KEYWORDS = qw/uid pid ppid stat tty time command/;
 
-=head1 NAME
-
-scriptname - does something
-
-=head1 SYNOPSIS
-
-scriptname [--help|--man]
-
-=head1 OPTIONS
-
-=over 4
-
-=item B<--help>
-
-Prints a usage and options summary.
-
-=item B<--man>
-
-Displays the manual.
-
-=back
-
-=head1 DESCRIPTION
-
-Right now, I think it just prints "Hello, world!".
-
-=head1 DIAGNOSTICS
-
-None.
-
-=head1 BUGS
-
-None, obviously.
-
-=head1 ENVIRONMENT
-
-=over 4
-
-=item TMPDIR
-
-All your data goes here.
-
-=back
-
-=head1 AUTHOR
-
-Copyright 2012 Aaron Hall.
-
-=cut
-
 my $COMPARISON_OPS = qr/(?:[<>=]|\s(?:eq|ne)\s|[!=]~)/;
 
 # get our operations
@@ -164,7 +114,8 @@ sub run_ps {
 
     my $kw_str = join(',', @keywords);
 
-    open my $ps_fh, '-|', "ps", "ax", "-o${kw_str}" or die "can't run ps, exiting\n";
+    open my $ps_fh, '-|', "ps", "ax", "-o${kw_str}"
+      or die "can't run ps, exiting\n";
     my @lines = (<$ps_fh>);
     close $ps_fh;
     return @lines;
@@ -299,3 +250,174 @@ sub uniq (@) {
 
 
 main();
+
+=head1 NAME
+
+psgrep - search for processes matching given criteria
+
+=head1 SYNOPSIS
+
+psgrep [-pf] OPERATION ...
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-f>, B<--long>
+
+Print these fields for every process:
+C<< uid pid ppid stat tty time command >>.
+Any fields specified in comparison operations will also be printed.
+If both this option and B<--pid> are specified, B<--pid> wins.
+
+=item B<-p>, B<--pid>
+
+Print only the PIDs of the matching processes. If both this option and
+B<--long> are specified, B<--pid> wins.
+
+=item B<-h>, B<--help>
+
+Prints a usage and options summary.
+
+=item B<--man>
+
+Displays the manual.
+
+=back
+
+=head1 DESCRIPTION
+
+B<psgrep> prints information about processes matching given criteria.
+You can make comparisons against any field that your ps(1) command's
+B<-o> option supports. B<psgrep> assumes by default that you're running
+it interactively and want to see the process information that you're
+comparing against. So comparing against a field automatically causes
+that field to be printed.
+
+If you give the B<-p> option, B<psgrep> will instead print only the PID
+of matching processes, no matter what kind of comparison operations you
+specify.
+
+=head1 OPERATIONS
+
+An operation is a comparison against some piece of data (a "field")
+about a process. The available fields and their interpretations vary
+from system to system. For a full list of fields, see the documentation
+for your ps(1)'s B<-o> option.
+
+Operations are of the form:
+
+    FIELD OP OPERAND
+
+For example:
+
+    user eq 'root'
+    pid > 1
+    command =~ /http/
+
+The field name must be a single word (in perl, it must look like an
+identifier). Only alphanumeric field names are accepted. The entire
+operation must be in a single shell argument. Quote as necessary.
+
+You can specify multiple operations: 
+
+    psgrep uid==0 'command =~ /sh/'
+
+All operations must return true for a process to match (i.e. they're
+&&'d together).
+
+=head2 Operators
+
+The available operators are:
+
+    ==, >, >=, <, <=    numeric comparison
+    eq, ne              string comparison
+    =~, !~              regex pattern match
+
+The operations are performed as in Perl; B<psgrep> builds perl code that
+actually performs the operations. 
+
+=head2 Single Operation
+
+For convenience, B<psgrep> treats a single argument specially. A single
+argument need not have a comparison operator. If not, it is treated as a
+Perl regex match against the I<command> field. This makes the simple
+case simple:
+
+    psgrep http      # matches "httpd" or "wget http://example.com/"
+    psgrep '[Mm]ail' # "Mail", "mail", "mailx", "sendmail" ...
+
+You can surround the regex with slashes; this lets you use the C<i> and
+C<x> options. The following three commands are equivalent:
+
+    psgrep /Perl/i
+    psgrep 'command =~ m[Perl]i'
+    psgrep '[Pp][Ee][Rr][Ll]'
+
+Note that you'll typically have to quote the use of brackets from your
+shell, since they're used in shell globbing syntax. Strictly speaking,
+you don't have to quote constructs that don't specifically interfere
+with shell syntax, but it's often a good idea.
+
+=head2 Fields
+
+A few common ones are:
+
+    command     command and arguments
+    pid         process's group ID
+    pcpu        percentage CPU usage
+    pid         process ID
+    ppid        parent process ID
+    rss         resident set size
+    stat        symbolic process state
+    tty         full name of control terminal
+    uid         process's user ID
+    user        user name (from uid)
+    vsz         virtual memory size of the process
+
+=head1 DIAGNOSTICS
+
+=over 4
+
+=item "can't understand <ARG>"
+
+What you gave doesn't look like an operation to B<psgrep>. Operations
+should look like C<FIELD operator OPERAND>. In particular, I<FIELD> must
+be an alphanumeric string, and I<operator> must be one of the operators
+given above.
+
+=item "error: = should be == in '<ARG>'"
+
+You must say:
+
+    psgrep 'uid == 0'   # not psgrep 'uid = 0'
+
+=item "can't run ps, exiting"
+
+For some reason, B<psgrep> couldn't find or execute your B<ps>
+program. Maybe the PATH isn't set up right?
+
+=item "psgrep failed (line <NUM>): <some perl error>"
+
+Something you passed made Perl's compiler die. This can happen if your
+operand isn't something perl recognizes. (The operand is not parsed by
+B<psgrep> and is passed directly to perl.) Most warnings are promoted to
+fatal errors with C<< use warnings FATAL >>.
+
+=back
+
+=head1 BUGS
+
+B<psgrep> assumes that no output field but C<command> will contain spaces.
+If for some reason this isn't true, it will mis-parse the output from ps(1).
+This may be fixed in the future. For now, don't do that.
+
+=head1 SEE ALSO
+
+ps(1), perlop(1)
+
+=head1 AUTHOR
+
+Copyright 2012 Aaron Hall.
+
+=cut

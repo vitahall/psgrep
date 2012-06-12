@@ -257,7 +257,9 @@ psgrep - search for processes matching given criteria
 
 =head1 SYNOPSIS
 
-psgrep [--help|--man] [-pf] OPERATION ...
+psgrep [--help|--man] [-pf] /REGEX/
+
+psgrep [--help|--man] [-pf] '<FIELD op OPERAND>' ...
 
 =head1 OPTIONS
 
@@ -288,7 +290,7 @@ Displays the manual.
 =head1 DESCRIPTION
 
 B<psgrep> prints information about processes matching given criteria.
-You can make comparisons against any field that your ps(1) command's
+You can make comparisons against any field that your I<ps> command's
 B<-o> option supports. B<psgrep> assumes by default that you're running
 it interactively and want to see the process information that you're
 comparing against. So comparing against a field automatically causes
@@ -303,11 +305,11 @@ specify.
 An operation is a comparison against some piece of data (a "field")
 about a process. The available fields and their interpretations vary
 from system to system. For a full list of fields, see the documentation
-for your ps(1)'s B<-o> option.
+for B<-o> in ps(1).
 
 Operations are of the form:
 
-    FIELD OP OPERAND
+    FIELD op OPERAND
 
 For example:
 
@@ -337,28 +339,6 @@ The available operators are:
 The operations are performed as in Perl; B<psgrep> builds perl code that
 actually performs the operations. 
 
-=head2 Single Operation
-
-For convenience, B<psgrep> treats a single argument specially. A single
-argument need not have a comparison operator. If not, it is treated as a
-Perl regex match against the I<command> field. This makes the simple
-case simple:
-
-    psgrep http      # matches "httpd" or "wget http://example.com/"
-    psgrep '[Mm]ail' # "Mail", "mail", "mailx", "sendmail" ...
-
-You can surround the regex with slashes; this lets you use the C<i> and
-C<x> options. The following three commands are equivalent:
-
-    psgrep /Perl/i
-    psgrep 'command =~ m[Perl]i'
-    psgrep '[Pp][Ee][Rr][Ll]'
-
-Note that you'll typically have to quote the use of brackets from your
-shell, since they're used in shell globbing syntax. Strictly speaking,
-you don't have to quote constructs that don't specifically interfere
-with shell syntax, but it's often a good idea.
-
 =head2 Fields
 
 A few common ones are:
@@ -375,6 +355,31 @@ A few common ones are:
     user        user name (from uid)
     vsz         virtual memory size of the process
 
+Again, both the available fields and their interpretations vary
+from system to system. See ps(1) for a complete list.
+
+=head2 Single Regex Argument
+
+For convenience, B<psgrep> treats a single argument specially. A single
+argument need not have a comparison operator. If not, it is treated as a
+Perl regex match against the I<command> field. This makes the simple
+case simple:
+
+    psgrep http      # matches "httpd" or "wget http://example.com/"
+    psgrep '[Mm]ail' # "Mail", "mail", "mailx", "sendmail" ...
+
+You can surround the regex with slashes; this lets you use the C<i> and
+C<x> regex modifiers. The following three commands are equivalent:
+
+    psgrep /Perl/i
+    psgrep 'command =~ m[Perl]i'
+    psgrep '[Pp][Ee][Rr][Ll]'
+
+Note that you'll typically have to quote the use of brackets from your
+shell, since they're used in shell globbing syntax. Strictly speaking,
+you don't have to quote constructs that don't interfere
+with shell syntax, but it's often a good idea.
+
 =head1 DIAGNOSTICS
 
 =over 4
@@ -382,7 +387,7 @@ A few common ones are:
 =item "can't understand <ARG>"
 
 What you gave doesn't look like an operation to B<psgrep>. Operations
-should look like C<FIELD operator OPERAND>. In particular, I<FIELD> must
+should look like C<FIELD op OPERAND>. In particular, I<FIELD> must
 be an alphanumeric string, and I<operator> must be one of the operators
 given above.
 
@@ -408,9 +413,10 @@ fatal errors with C<< use warnings FATAL >>.
 
 =head1 BUGS
 
-B<psgrep> assumes that no output field but C<command> will contain spaces.
-If for some reason this isn't true, it will mis-parse the output from ps(1).
-This may be fixed in the future. For now, don't do that.
+B<psgrep> assumes that no output field but C<command> will contain
+spaces. If this isn't true (and on some systems it isn't), B<psgrep>
+will mis-parse the output from I<ps>. This may be fixed in the future.
+For now, don't do that.
 
 =head1 SEE ALSO
 
@@ -418,6 +424,16 @@ ps(1), perlop(1)
 
 =head1 AUTHOR
 
-Copyright 2012 Aaron Hall.
+Copyright 2012 Aaron Hall. <ahall@vitaphone.net>
+
+This B<psgrep> script is made available under the terms of the Artistic
+License 2.0, available at L<http://www.perlfoundation.org/artistic_license_2_0>.
+
+=head1 HISTORY
+
+Inspired by the "psgrep" program given as an example at the end of
+Chapter 1 of Perl Cookbook, 1st. Ed., by Tom Christiansen and Nat
+Torkington (O'Reilly and Associates, 1998). It takes a somewhat different
+approach and shares no code with that "psgrep", though.
 
 =cut

@@ -74,7 +74,7 @@ sub get_ops_from_args {
         # one arg, could be a keyword-op-value or just a regex match
         # try to DWIM
         my $arg = $args[0];
-        if ($arg =~ m[^/(.+)/([ixgc]*)]) {
+        if ($arg =~ m[^/(.+)/([ixauld]*)]) {
             # if it looks like a /regex/, treat it as one
             my ($re, $flags) = ($1, $2);
             return([ command => "=~ m/$re/$flags" ]);
@@ -368,8 +368,9 @@ case simple:
     psgrep http      # matches "httpd" or "wget http://example.com/"
     psgrep '[Mm]ail' # "Mail", "mail", "mailx", "sendmail" ...
 
-You can surround the regex with slashes; this lets you use the C<i> and
-C<x> regex modifiers. The following three commands are equivalent:
+You can surround the regex with slashes; this lets you use the C<i>, C<x>,
+C<a>, C<u>, C<d>, and C<l> regex modifiers (when available on your version
+of Perl). The following three commands are equivalent:
 
     psgrep /Perl/i
     psgrep 'command =~ m[Perl]i'
@@ -420,7 +421,7 @@ For now, don't do that.
 
 =head1 SEE ALSO
 
-ps(1), perlop(1)
+ps(1), perlop(1), perlre(1)
 
 =head1 AUTHOR
 

@@ -12,12 +12,14 @@ use Pod::Usage;
 
 my $LONG_FORMAT;
 my $PID_ONLY;
+my @ADD_KEYWORDS;
 my $help_level;
 GetOptions(
-    'long|f'    => \$LONG_FORMAT,
-    'pid|p'     => \$PID_ONLY,
-    'help|h'    => sub { $help_level = 1 },
-    'man',      => sub { $help_level = 2 },
+    'long|f'      => \$LONG_FORMAT,
+    'pid|p'       => \$PID_ONLY,
+    'output|o=s'  => \@ADD_KEYWORDS,
+    'help|h'      => sub { $help_level = 1 },
+    'man',        => sub { $help_level = 2 },
 ) or pod2usage(-verbose => 1);
 
 pod2usage(-verbose => $help_level) if $help_level;
@@ -33,17 +35,8 @@ sub main {
 
     my @keywords = map { $_->[0] } @ops;
 
-    # -f given
-    if ($LONG_FORMAT) {
-        @keywords = (@keywords, @LONG_KEYWORDS);
-    }
-
-    # command & pid will always be there; put them up front for uniq
-    unshift @keywords, 'command', 'pid';
-    @keywords = uniq(@keywords);
-
-    # now move 'command' to the end (yeah, I'm being fancy for no reason)
-    push @keywords, shift @keywords;
+    push(@keywords, @LONG_KEYWORDS) if $LONG_FORMAT;
+    @keywords = fixup_keywords(@keywords, @ADD_KEYWORDS);
 
     # now call ps
     my @processes = grep_ps(\@keywords, \@ops);
@@ -64,6 +57,25 @@ sub main {
     foreach my $proc_ref ($headers_ref, @processes) {
         print_formatted($format_str, \@keywords, $proc_ref);
     }
+}
+
+
+sub fixup_keywords {
+    my(@input) = @_;
+    my @return;
+    my %seen;
+
+    @input = split(/,/, join(',', @input));
+    foreach my $key (@input) {
+        next if $seen{$key};
+        next if $key =~ /^(?:pid|command)$/;
+
+        push @return, $key;
+        $seen{$key} = 1;
+    }
+
+    @return = ('pid', @return, 'command');
+    return @return;
 }
 
 
@@ -272,10 +284,18 @@ C<< uid pid ppid stat tty time command >>.
 Any fields specified in comparison operations will also be printed.
 If both this option and B<--pid> are specified, B<--pid> wins.
 
+=item B<-o>, B<--output> KEYWORDS
+
+In addition to any keywords specified in operations (and those that
+B<--long> adds if you use it), also print the fields associated with the
+keywords given. The option can be specified multiple times, and also
+accepts multiple comma-delimited keywords, after the B<-o> option in
+I<ps>. If you also give B<--pid>, that wins.
+
 =item B<-p>, B<--pid>
 
 Print only the PIDs of the matching processes. If both this option and
-B<--long> are specified, B<--pid> wins.
+B<--long> or B<--output> are specified, B<--pid> wins.
 
 =item B<-h>, B<--help>
 

@@ -269,9 +269,9 @@ psgrep - search for processes matching given criteria
 
 =head1 SYNOPSIS
 
-psgrep [--help|--man] [-pf] /REGEX/
+psgrep [--help|--man] [-pf] [-o KEYWORDS] /REGEX/
 
-psgrep [--help|--man] [-pf] '<FIELD op OPERAND>' ...
+psgrep [--help|--man] [-pf] [-o KEYWORDS] '<KEYWORD op OPERAND>' ...
 
 =head1 OPTIONS
 
@@ -281,8 +281,9 @@ psgrep [--help|--man] [-pf] '<FIELD op OPERAND>' ...
 
 Print these fields for every process:
 C<< uid pid ppid stat tty time command >>.
-Any fields specified in comparison operations will also be printed.
-If both this option and B<--pid> are specified, B<--pid> wins.
+Any fields specified in comparison operations or with B<--output> will
+also be printed. If both this option and B<--pid> are specified, B<--pid>
+wins.
 
 =item B<-o>, B<--output> KEYWORDS
 
@@ -294,8 +295,8 @@ I<ps>. If you also give B<--pid>, that wins.
 
 =item B<-p>, B<--pid>
 
-Print only the PIDs of the matching processes. If both this option and
-B<--long> or B<--output> are specified, B<--pid> wins.
+Print only the PIDs of the matching processes. Giving B<-p> overrides
+any use of B<-f> or B<-o>.
 
 =item B<-h>, B<--help>
 
@@ -310,26 +311,30 @@ Displays the manual.
 =head1 DESCRIPTION
 
 B<psgrep> prints information about processes matching given criteria.
-You can make comparisons against any field that your I<ps> command's
+You can make comparisons against any keyword that your I<ps> command's
 B<-o> option supports. B<psgrep> assumes by default that you're running
 it interactively and want to see the process information that you're
 comparing against. So comparing against a field automatically causes
 that field to be printed.
 
+In the first form, you simply give a regular expression to match against
+the command and arguments. In the second, you give one or more comparison
+operations to specify which processes you want.
+
 If you give the B<-p> option, B<psgrep> will instead print only the PID
-of matching processes, no matter what kind of comparison operations you
-specify.
+of matching processes without a header, no matter what other options you
+give, or what kind of comparison operations you specify.
 
 =head1 OPERATIONS
 
 An operation is a comparison against some piece of data (a "field")
-about a process. The available fields and their interpretations vary
-from system to system. For a full list of fields, see the documentation
-for B<-o> in ps(1).
+about a process. You specify the field by its name (or "keyword"). The
+available fields and their interpretations vary from system to system.
+For a full list of fields, see the documentation for B<-o> in ps(1).
 
 Operations are of the form:
 
-    FIELD op OPERAND
+    KEYWORD op OPERAND
 
 For example:
 
@@ -337,9 +342,10 @@ For example:
     pid > 1
     command =~ /http/
 
-The field name must be a single word (in perl, it must look like an
-identifier). Only alphanumeric field names are accepted. The entire
-operation must be in a single shell argument. Quote as necessary.
+The field name (or "keyword") must be a single word (in perl, it must
+look like an identifier). Only alphanumeric keywords are accepted.
+The entire operation must be in a single shell argument. Quote as
+necessary.
 
 You can specify multiple operations: 
 
@@ -359,7 +365,7 @@ The available operators are:
 The operations are performed as in Perl; B<psgrep> builds perl code that
 actually performs the operations. 
 
-=head2 Fields
+=head2 Keywords
 
 A few common ones are:
 
@@ -376,7 +382,7 @@ A few common ones are:
     vsz         virtual memory size of the process
 
 Again, both the available fields and their interpretations vary
-from system to system. See ps(1) for a complete list.
+from system to system. See ps(1) for a complete list for your system.
 
 =head2 Single Regex Argument
 
@@ -408,9 +414,18 @@ with shell syntax, but it's often a good idea.
 =item "can't understand <ARG>"
 
 What you gave doesn't look like an operation to B<psgrep>. Operations
-should look like C<FIELD op OPERAND>. In particular, I<FIELD> must
+should look like C<KEYWORD op OPERAND>. In particular, I<KEYWORD> must
 be an alphanumeric string, and I<operator> must be one of the operators
 given above.
+
+You might have used the one-argument regex syntax but added a second
+argument. You can't say this:
+
+    psgrep httpd uid=501
+
+Once you add a second operation, you have to say this:
+
+    psgrep 'command =~ httpd' uid=501
 
 =item "single = should be == in '<ARG>'"
 
@@ -422,6 +437,11 @@ You must say:
 
 For some reason, B<psgrep> couldn't find or execute your B<ps>
 program. Maybe the PATH isn't set up right?
+
+=item "<ARG>: keyword not found"
+
+C<ps -o> on your system doesn't know what <ARG> means. See ps(1) for
+a list of keywords that will work for you.
 
 =item "perl error (line <NUM>): <some perl error>"
 
@@ -436,8 +456,12 @@ fatal errors with C<< use warnings FATAL >>.
 
 B<psgrep> assumes that no output field but C<command> will contain
 spaces. If this isn't true (and on some systems it isn't), B<psgrep>
-will mis-parse the output from I<ps>. This may be fixed in the future.
-For now, don't do that.
+will mis-parse the output from I<ps>. The C<args> keyword is an
+alias of C<command> on many systems, and will cause this behavior.
+This may be fixed in the future. For now, don't do that.
+
+You should still be able to use the one-arg regex operation even though
+you've also got other operations.
 
 =head1 SEE ALSO
 

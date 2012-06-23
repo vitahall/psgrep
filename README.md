@@ -29,13 +29,13 @@ That comes back with results like:
 
 It's not *just* grep. You can use most of Perl's comparison operators.
 
-    psgrep 'user eq merlin'
-    psgrep ppid==1            # processes owned by init (on Unix)
+    psgrep 'user eq ahall'    # ahall's processes
+    psgrep 'ppid > 1'         # processes not parented by init (on Unix)
     psgrep 'state =~ [Z]'     # zombies
 
 Putting it all together:
 
-    psgrep php 'uid != 0' 'pcpu > 5' # non-root php using > 5% of cpu
+    psgrep perl 'uid != 0' 'pcpu > 5' # non-root perl scripts using > 5% of cpu
 
 ## Output
 

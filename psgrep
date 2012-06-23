@@ -81,25 +81,26 @@ sub fixup_keywords {
 
 sub get_ops_from_args {
     my @args = @_;
+    my @ops;
 
-    if (@args == 1) {
-        # one arg, could be a keyword-op-value or just a regex match
-        # try to DWIM
-        my $arg = $args[0];
-        if ($arg =~ m[^/(.+)/([ixauld]*)]) {
-            # if it looks like a /regex/, treat it as one
-            my ($re, $flags) = ($1, $2);
-            return([ command => "=~ m/$re/$flags" ]);
-        }
-        elsif ($arg !~ $COMPARISON_OPS) {
-            return([ command => "=~ m/$arg/" ]);
-        }
-        else {
-            # continue into the multi-arg parser below
-        }
+    return unless @args;
+
+    # special-case a plain regex in first position
+    my $firstarg = shift @args;
+    if ($firstarg =~ m[^/(.+)/([ixauld]*)]) {
+        # if it looks like a /regex/, treat it as one
+        my ($re, $flags) = ($1, $2);
+        push @ops, [ command => "=~ m/$re/$flags" ];
+    }
+    elsif ($firstarg !~ $COMPARISON_OPS) {
+        push @ops, [ command => "=~ m/$firstarg/" ];
+    }
+    else {
+        # OK, the first argument isn't special, so
+        # let the regular op-parser have at it
+        unshift @args, $firstarg;
     }
 
-    my @ops;
     foreach my $arg (@args) {
         # here, we look for keyword+everything-else
         if ($arg =~ /^(\w+)(\W.+)$/) {
@@ -270,9 +271,7 @@ psgrep - search for processes matching given criteria
 
 =head1 SYNOPSIS
 
-psgrep [--help|--man] [-pf] [-o KEYWORDS] /REGEX/
-
-psgrep [--help|--man] [-pf] [-o KEYWORDS] '<KEYWORD op OPERAND>' ...
+psgrep [--help|--man] [OPTIONS] [REGEX] '<KEYWORD op OPERAND>' ...
 
 =head1 OPTIONS
 
@@ -313,16 +312,14 @@ Displays the manual.
 
 B<psgrep> prints information about processes matching given criteria.
 You can make comparisons against any keyword that your I<ps> command's
-B<-o> option supports. B<psgrep> assumes by default that you're running
-it interactively and want to see the process information that you're
-comparing against. So comparing against a field automatically causes
-that field to be printed.
+B<-o> option supports.
 
-In the first form, you simply give a regular expression to match against
-the command and arguments. In the second, you give one or more comparison
-operations to specify which processes you want.
+B<psgrep> assumes by default that you're running it interactively and
+want to see the process information that you're comparing against. So
+comparing against a field automatically causes that field to be printed.
+(You can print additional fields with the B<-l> and B<-o> options.)
 
-If you give the B<-p> option, B<psgrep> will instead print only the PID
+If you give the B<-p> option, B<psgrep> will print only the PID
 of matching processes without a header, no matter what other options you
 give, or what kind of comparison operations you specify.
 
@@ -385,22 +382,31 @@ A few common ones are:
 Again, both the available fields and their interpretations vary
 from system to system. See ps(1) for a complete list for your system.
 
-=head2 Single Regex Argument
+=head2 Initial Regex Argument
 
-For convenience, B<psgrep> treats a single argument specially. A single
-argument need not have a comparison operator. If not, it is treated as a
-Perl regex match against the I<command> field. This makes the simple
-case simple:
+For convenience, B<psgrep> treats the first argument specially. The
+first argument need not have a comparison operator. If not, it is
+treated as a Perl regex match against the I<command> field. This makes
+the simple case simple:
 
     psgrep http      # matches "httpd" or "wget http://example.com/"
     psgrep '[Mm]ail' # "Mail", "mail", "mailx", "sendmail" ...
 
-You can surround the regex with slashes; this lets you use the C<i>, C<x>,
-C<a>, C<u>, C<d>, and C<l> regex modifiers (when available on your version
-of Perl). The following three commands are equivalent:
+You can add additional operations after the initial regex:
+
+    psgrep http 'state =~ /[UZ]/'
+    psgrep sh$ uid==0
+
+When you use an initial bare regex with other operations, the regular
+operations must come I<after> the regex. A bare regex anywhere but as
+the first non-option argument is an error.
+
+You can surround an initial regex with slashes; this lets you use the
+C<i>, C<x>, C<a>, C<u>, C<d>, and C<l> regex modifiers (when available
+on your version of Perl). The following three commands are equivalent:
 
     psgrep /Perl/i
-    psgrep 'command =~ m[Perl]i'
+    psgrep 'command =~ m/Perl/i'
     psgrep '[Pp][Ee][Rr][Ll]'
 
 Note that you'll typically have to quote the use of brackets from your
@@ -419,20 +425,17 @@ should look like C<KEYWORD op OPERAND>. In particular, I<KEYWORD> must
 be an alphanumeric string, and I<operator> must be one of the operators
 given above.
 
-You might have used the one-argument regex syntax but added a second
-argument. You can't say this:
+You might have used the one-argument regex syntax after having already
+used a standard C<KEYWORD op OPERAND> operation. That "bare regex" is
+only recognized as the first non-option argument, like this:
 
-    psgrep httpd uid=501
-
-Once you add a second operation, you have to say this:
-
-    psgrep 'command =~ httpd' uid=501
+    psgrep httpd uid==501  # not: psgrep uid==501 httpd
 
 =item "single = should be == in '<ARG>'"
 
 You must say:
 
-    psgrep 'uid == 0'   # not psgrep 'uid = 0'
+    psgrep 'uid == 0'   # not: psgrep 'uid = 0'
 
 =item "can't run ps, exiting"
 
@@ -460,9 +463,6 @@ spaces. If this isn't true (and on some systems it isn't), B<psgrep>
 will mis-parse the output from I<ps>. The C<args> keyword is an
 alias of C<command> on many systems, and will cause this behavior.
 This may be fixed in the future. For now, don't do that.
-
-You should still be able to use the one-arg regex operation even though
-you've also got other operations.
 
 =head1 SEE ALSO
 

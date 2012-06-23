@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 # psgrep - greps process list
+#
+# Licensed under Artistic License 2.0. See AUTHOR section at bottom of
+# script for details.
 
 use warnings;
 use strict;
@@ -484,7 +487,9 @@ ps(1), perlop(1), perlre(1)
 Copyright 2012 Aaron Hall. <ahall@vitaphone.net>
 
 This B<psgrep> script is made available under the terms of the Artistic
-License 2.0, available at L<http://www.perlfoundation.org/artistic_license_2_0>.
+License 2.0, distributed with this script (see the LICENSE file),
+and also available at
+L<http://www.perlfoundation.org/artistic_license_2_0>.
 
 =head1 HISTORY
 

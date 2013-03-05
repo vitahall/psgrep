@@ -96,7 +96,7 @@ sub get_ops_from_args {
         push @ops, [ command => "=~ m/$re/$flags" ];
     }
     elsif ($firstarg !~ $COMPARISON_OPS) {
-        push @ops, [ command => "=~ m/$firstarg/" ];
+        push @ops, [ command => "=~ m/$firstarg/i" ];
     }
     else {
         # OK, the first argument isn't special, so
@@ -387,30 +387,31 @@ from system to system. See ps(1) for a complete list for your system.
 
 =head2 Initial Regex Argument
 
-For convenience, B<psgrep> treats the first argument specially. The
-first argument need not have a comparison operator. If not, it is
-treated as a Perl regex match against the I<command> field. This makes
-the simple case simple:
+For convenience, B<psgrep> treats the first argument specially. The first
+argument need not have a comparison operator. If not, it is treated as a
+case-insensitive regex match against the I<command> field. This makes the
+simple case simple:
 
     psgrep http      # matches "httpd" or "wget http://example.com/"
-    psgrep '[Mm]ail' # "Mail", "mail", "mailx", "sendmail" ...
+    psgrep mail      # "Mail", "mail", "mailx", "sendmail" ...
+
+You can surround an initial regex with slashes; this lets you use the C<i>,
+C<x>, C<a>, C<u>, C<d>, and C<l> regex modifiers (when available on your
+version of Perl). Slashes turn off the automatic C</i> behavior; you must
+give it explicitly if you want it. The following commands are equivalent.
+
+    psgrep perl                   # automatically case-insensitive
+    psgrep /Perl/i                # requires /i
+    psgrep 'command =~ m/Perl/i'
 
 You can add additional operations after the initial regex:
 
+    psgrep /sh$/ uid==0
     psgrep http 'state =~ /[UZ]/'
-    psgrep sh$ uid==0
 
-When you use an initial bare regex with other operations, the regular
-operations must come I<after> the regex. A bare regex anywhere but as
-the first non-option argument is an error.
-
-You can surround an initial regex with slashes; this lets you use the
-C<i>, C<x>, C<a>, C<u>, C<d>, and C<l> regex modifiers (when available
-on your version of Perl). The following three commands are equivalent:
-
-    psgrep /Perl/i
-    psgrep 'command =~ m/Perl/i'
-    psgrep '[Pp][Ee][Rr][Ll]'
+When you use an initial I<command> regex with other operations, the
+regular operations must come I<after> the regex. A bare regex anywhere
+but as the first non-option argument is an error.
 
 Note that you'll typically have to quote the use of brackets from your
 shell, since they're used in shell globbing syntax. Strictly speaking,

@@ -118,7 +118,13 @@ sub get_ops_from_args {
             push @ops, [ $keyword, $rest ];
         }
         else {
-            die "psgrep: can't understand $arg\n";
+            if (($arg =~ /^$COMPARISON_OPS/o) or ($arg !~ /\s/)) {
+                die "psgrep: can't understand $arg"
+                  . " (perhaps you need quotes?)\n";
+            }
+            else {
+                die "psgrep: can't understand $arg\n";
+            }
         }
     }
 
@@ -429,9 +435,15 @@ should look like C<KEYWORD op OPERAND>. In particular, I<KEYWORD> must
 be an alphanumeric string, and I<operator> must be one of the operators
 given above.
 
-You might have used the one-argument regex syntax after having already
-used a standard C<KEYWORD op OPERAND> operation. That "bare regex" is
-only recognized as the first non-option argument, like this:
+You might have not quoted a comparison operation. If B<psgrep> thinks
+that's the case, it'll add "perhaps you need quotes?".
+
+    psgrep ppid = 1  # should be: psgrep 'ppid = 1'
+                     # or: psgrep ppid=1
+
+You might also have used the one-argument regex syntax after having
+already used a standard C<KEYWORD op OPERAND> operation. That "bare
+regex" is only recognized as the first non-option argument, like this:
 
     psgrep httpd uid==501  # not: psgrep uid==501 httpd
 

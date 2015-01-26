@@ -108,10 +108,10 @@ sub get_ops_from_args {
         # here, we look for keyword+everything-else
         if ($arg =~ /^(\w+)(\W.+)$/) {
             my ($keyword, $rest) = ($1, $2);
-            # throw out bare =
-            if ($rest =~ /^\s*=\s*\d/) {
-                die "psgrep: single = should be == in '${keyword}${rest}'\n";
-            }
+
+            # DWIM: treat a '=' operator as '=='
+            $rest =~ s/(?<!=)=(?!=)/==/;
+
             # DWIM: autoquote RHS barewords in string ops
             $rest =~ s/^(\s+(?:eq|ne)\s+)(\S+)$/$1"$2"/;
             $rest =~ s/^(\s*(?:=~|!~)\s*)(\S+)$/$1"$2"/;
@@ -359,9 +359,9 @@ All operations must return true for a process to match (i.e. they're
 
 The available operators are:
 
-    ==, >, >=, <, <=    numeric comparison
-    eq, ne              string comparison
-    =~, !~              regex pattern match
+    == or =, >, >=, <, <=    numeric comparison
+    eq, ne                   string comparison
+    =~, !~                   regex pattern match
 
 The operations are performed as in Perl; B<psgrep> builds perl code that
 actually performs the operations. 
@@ -434,12 +434,6 @@ used a standard C<KEYWORD op OPERAND> operation. That "bare regex" is
 only recognized as the first non-option argument, like this:
 
     psgrep httpd uid==501  # not: psgrep uid==501 httpd
-
-=item "single = should be == in '<ARG>'"
-
-You must say:
-
-    psgrep 'uid == 0'   # not: psgrep 'uid = 0'
 
 =item "can't run ps, exiting"
 

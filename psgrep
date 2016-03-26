@@ -109,6 +109,9 @@ sub get_ops_from_args {
         if ($arg =~ /^(\w+)(\W.+)$/) {
             my ($keyword, $rest) = ($1, $2);
 
+            # ps requires keywords to be lower-case
+            $keyword = lc($keyword);
+
             # DWIM: treat a '=' operator as '=='
             $rest =~ s/^\s*=(?!=)/==/;
 

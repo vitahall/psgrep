@@ -118,6 +118,13 @@ sub get_ops_from_args {
             # DWIM: autoquote RHS barewords in string ops
             $rest =~ s/^(\s+(?:eq|ne)\s+)(\S+)$/$1"$2"/;
             $rest =~ s/^(\s*(?:=~|!~)\s*)(\S+)$/$1"$2"/;
+
+            # check for reversed match ops
+            if ($rest =~ /[~!]=/) {
+                die "psgrep: can't understand '$rest'"
+                  . " (you might have your =~ or !~ turned around)\n";
+            }
+
             push @ops, [ $keyword, $rest ];
         }
         else {

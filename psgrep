@@ -147,6 +147,7 @@ sub run_ps {
 
     my $kw_str = join(',', @keywords);
 
+    warn "Running: ps ax -o${kw_str}\n" if $ENV{PSGREP_DEBUG};
     open my $ps_fh, '-|', "ps", "ax", "-o${kw_str}"
       or die "psgrep: can't run ps, exiting\n";
     my @lines = (<$ps_fh>);
@@ -179,6 +180,8 @@ sub select_ps_lines {
         $perl_eval .= ' && ' if $perl_eval;
         $perl_eval .= "(\$fields{" . $keyword . "} $op)";
     }
+
+    die Dumper(\@keywords, \@ops, $perl_eval, "\n") if $ENV{PSGREP_DEBUG};
 
     #read the first line
     my $num_keywords = scalar @keywords;

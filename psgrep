@@ -113,7 +113,7 @@ sub get_ops_from_args {
             $keyword = lc($keyword);
 
             # DWIM: treat a '=' operator as '=='
-            $rest =~ s/^\s*=(?!=)/==/;
+            $rest =~ s/^\s*=(?![~=])/==/;
 
             # DWIM: autoquote RHS barewords in string ops
             $rest =~ s/^(\s+(?:eq|ne)\s+)(\S+)$/$1"$2"/;

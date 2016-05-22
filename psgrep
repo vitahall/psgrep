@@ -7,7 +7,6 @@
 use warnings;
 use strict;
 
-use List::Util qw/none max/;
 use Data::Dumper;
 
 use Getopt::Long qw/:config posix_default bundling no_ignore_case/;
@@ -30,6 +29,36 @@ pod2usage(-verbose => $help_level) if $help_level;
 my @LONG_KEYWORDS = qw/uid pid ppid stat tty time command/;
 
 my $COMPARISON_OPS = qr/(?:[<>=]|\s(?:eq|ne)\s|[!=]~)/;
+
+
+
+# uniq - taken from List::MoreUtils to eliminate dependency on
+# that module. Written by Eric J. Roode, Tassilo von Parseval,
+# and Adam Kennedy.
+sub uniq (@) {
+    my %seen = ();
+    grep { not $seen{$_}++ } @_;
+}
+
+# none and max - aren't available in older versions of List::Util, so
+# we include them here.
+sub none (&@) {
+    my $sub = shift;
+    for (@_) {
+        return if &$sub($_);
+    }
+    return 1;
+}
+
+sub max {
+    my $max = shift;
+    no warnings 'uninitialized';
+    for (@_) {
+        $max = $_ if $_ > $max;
+    }
+    return $max;
+}
+
 
 # get our operations
 sub main {
@@ -278,14 +307,6 @@ sub print_formatted {
     printf $format_str, @process{@keywords};
 }
 
-
-# uniq - taken from List::MoreUtils to eliminate dependency on
-# that module. Written by Eric J. Roode, Tassilo von Parseval,
-# and Adam Kennedy.
-sub uniq (@) {
-    my %seen = ();
-    grep { not $seen{$_}++ } @_;
-}
 
 
 main();

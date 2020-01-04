@@ -149,7 +149,7 @@ sub get_ops_from_args {
             $rest =~ s/^(\s*(?:=~|!~)\s*)(\S+)$/$1"$2"/;
 
             # check for reversed match ops
-            if ($rest =~ /[~!]=/) {
+            if ($rest =~ /~[=!]/) {
                 die "psgrep: can't understand '$rest'"
                   . " (you might have your =~ or !~ turned around)\n";
             }

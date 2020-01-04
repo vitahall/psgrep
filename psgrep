@@ -15,11 +15,13 @@ use Pod::Usage;
 my $LONG_FORMAT;
 my $PID_ONLY;
 my @ADD_KEYWORDS;
+my $DEBUG;
 my $help_level;
 GetOptions(
     'long|f'      => \$LONG_FORMAT,
     'pid|p'       => \$PID_ONLY,
     'output|o=s'  => \@ADD_KEYWORDS,
+    'D'           => \$DEBUG,
     'help|h'      => sub { $help_level = 1 },
     'man',        => sub { $help_level = 2 },
 ) or pod2usage(-verbose => 1);
@@ -176,7 +178,7 @@ sub run_ps {
 
     my $kw_str = join(',', @keywords);
 
-    warn "Running: ps ax -o${kw_str}\n" if $ENV{PSGREP_DEBUG};
+    warn "Running: ps ax -o${kw_str}\n" if $DEBUG;
     open my $ps_fh, '-|', "ps", "ax", "-o${kw_str}"
       or die "psgrep: can't run ps, exiting\n";
     my @lines = (<$ps_fh>);
@@ -196,6 +198,17 @@ sub grep_ps {
     return select_ps_lines(\@keywords, \@ops, @ps_lines);
 }
 
+
+sub _dump_debug_run_info {
+    my $keywords  = shift;
+    my $ops       = shift;
+    my $perl_eval = shift;
+
+    print STDOUT " KEYWORDS: " . Dumper($keywords);
+    print STDOUT "      OPS: " . Dumper($ops);
+    print STDOUT "PERL EVAL: '$perl_eval'\n\n";
+}
+
 # takes a list of lines from ps output and returns an array of hashrefs
 sub select_ps_lines {
     my @keywords = @{shift(@_)};
@@ -210,7 +223,9 @@ sub select_ps_lines {
         $perl_eval .= "(\$fields{" . $keyword . "} $op)";
     }
 
-    die Dumper(\@keywords, \@ops, $perl_eval, "\n") if $ENV{PSGREP_DEBUG};
+    if ($DEBUG) {
+        _dump_debug_run_info(\@keywords, \@ops, $perl_eval);
+    }
 
     #read the first line
     my $num_keywords = scalar @keywords;

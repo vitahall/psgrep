@@ -8,6 +8,7 @@ use warnings;
 use strict;
 
 use Data::Dumper;
+$Data::Dumper::Indent = 1;
 
 use Getopt::Long qw/:config posix_default bundling no_ignore_case/;
 use Pod::Usage;
@@ -40,6 +41,7 @@ my @LONG_KEYWORDS = qw/uid pid ppid stat tty time command/;
 
 my $COMPARISON_OPS = qr/(?:[<>=]|\s(?:eq|ne)\s|[!=]~)/;
 
+my $DEBUG_DID_DP = 0;
 
 
 # uniq - taken from List::MoreUtils to eliminate dependency on
@@ -196,7 +198,7 @@ sub run_ps {
         # normal flow, run ps command
         my $kw_str = join(',', @keywords);
 
-        warn "Running: ps ax -o${kw_str}\n" if $DEBUG;
+        warn "PS: ps ax -o${kw_str}\n\n" if $DEBUG;
         open my $ps_fh, '-|', "ps", "ax", "-o${kw_str}"
             or die "psgrep: can't run ps, exiting\n";
         @lines = (<$ps_fh>);
@@ -223,9 +225,27 @@ sub _dump_debug_run_info {
     my $ops       = shift;
     my $perl_eval = shift;
 
-    print STDERR " KEYWORDS: " . Dumper($keywords);
-    print STDERR "      OPS: " . Dumper($ops);
+    print STDERR "KEYWORDS: " . Dumper($keywords)  . "\n";
+    print STDERR "OPS: "      . Dumper($ops)       . "\n";
     print STDERR "PERL EVAL: '$perl_eval'\n\n";
+}
+
+sub _deparse {
+    my $perl_eval = shift;
+
+    # deparse the code we're going to eval, because you and Perl
+    # might have different ideas of what your code does
+    use B::Deparse;
+    no strict;
+    no warnings qw/uninitialized once/;
+
+    print STDERR "DEPARSE:\n";
+    my $code = <<END_CODE;
+\$bdp = B::Deparse->new('-p','-x7');
+print STDERR (\$bdp->coderef2text( sub { $perl_eval } ), "\n\n");
+END_CODE
+
+    eval $code or warn "deparse died, $!";
 }
 
 # takes a list of lines from ps output and returns an array of hashrefs
@@ -277,6 +297,12 @@ sub select_ps_lines {
 
         # if we get here, save for dumping if necessary
         $psdump .= "$line\n" if $DUMP_PSDATA_FILE;
+
+        # deparse the eval string if debugging
+        if ($DEBUG && !$DEBUG_DID_DP) {
+            _deparse($perl_eval);
+            $DEBUG_DID_DP = 1;
+        }
 
         # run the eval
         my $ok;

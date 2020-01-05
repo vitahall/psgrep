@@ -187,7 +187,6 @@ sub run_ps {
 
     if ($DEBUG_PSDATA_FILE) {
         # use ps output from file, for testing and debugging
-        warn "NOTICE: using $DEBUG_PSDATA_FILE for input\n";
         open my $fh, '<', $DEBUG_PSDATA_FILE
             or die "psgrep: can't open $DEBUG_PSDATA_FILE, $!\n";
         @lines = grep { $_ !~ /^#/ } (<$fh>);

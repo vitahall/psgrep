@@ -15,15 +15,23 @@ use Pod::Usage;
 my $LONG_FORMAT;
 my $PID_ONLY;
 my @ADD_KEYWORDS;
+
 my $DEBUG;
+my $DUMP_PSDATA_FILE;
+my $DEBUG_PSDATA_FILE;
+
 my $help_level;
 GetOptions(
     'long|f'      => \$LONG_FORMAT,
     'pid|p'       => \$PID_ONLY,
     'output|o=s'  => \@ADD_KEYWORDS,
-    'D'           => \$DEBUG,
+
     'help|h'      => sub { $help_level = 1 },
     'man',        => sub { $help_level = 2 },
+
+    'D'             => \$DEBUG,
+    'test-psdata=s' => \$DEBUG_PSDATA_FILE,
+    'dump-psdata=s' => \$DUMP_PSDATA_FILE,
 ) or pod2usage(-verbose => 1);
 
 pod2usage(-verbose => $help_level) if $help_level;
@@ -175,14 +183,26 @@ sub get_ops_from_args {
 
 sub run_ps {
     my @keywords = @_;
+    my @lines;
 
-    my $kw_str = join(',', @keywords);
+    if ($DEBUG_PSDATA_FILE) {
+        # use ps output from file, for testing and debugging
+        warn "NOTICE: using $DEBUG_PSDATA_FILE for input\n";
+        open my $fh, '<', $DEBUG_PSDATA_FILE
+            or die "psgrep: can't open $DEBUG_PSDATA_FILE, $!\n";
+        @lines = grep { $_ !~ /^#/ } (<$fh>);
+        close $fh;
+    }
+    else {
+        # normal flow, run ps command
+        my $kw_str = join(',', @keywords);
 
-    warn "Running: ps ax -o${kw_str}\n" if $DEBUG;
-    open my $ps_fh, '-|', "ps", "ax", "-o${kw_str}"
-      or die "psgrep: can't run ps, exiting\n";
-    my @lines = (<$ps_fh>);
-    close $ps_fh;
+        warn "Running: ps ax -o${kw_str}\n" if $DEBUG;
+        open my $ps_fh, '-|', "ps", "ax", "-o${kw_str}"
+            or die "psgrep: can't run ps, exiting\n";
+        @lines = (<$ps_fh>);
+        close $ps_fh;
+    }
     return @lines;
 }
 
@@ -204,9 +224,9 @@ sub _dump_debug_run_info {
     my $ops       = shift;
     my $perl_eval = shift;
 
-    print STDOUT " KEYWORDS: " . Dumper($keywords);
-    print STDOUT "      OPS: " . Dumper($ops);
-    print STDOUT "PERL EVAL: '$perl_eval'\n\n";
+    print STDERR " KEYWORDS: " . Dumper($keywords);
+    print STDERR "      OPS: " . Dumper($ops);
+    print STDERR "PERL EVAL: '$perl_eval'\n\n";
 }
 
 # takes a list of lines from ps output and returns an array of hashrefs
@@ -232,6 +252,7 @@ sub select_ps_lines {
     my %lengths;
     my @selected;
     my $line_num = 0;
+    my $psdump;
     PROCESS: foreach my $line (@ps_lines) {
         chomp $line;
         $line_num++;
@@ -244,13 +265,19 @@ sub select_ps_lines {
             my %headers;
             @headers{@keywords} = map { uc $_ } @keywords;
             push @selected, \%headers;
-
             tally_lengths(\%lengths, \%headers);
+
+            # save headers if necessary
+            $psdump = "$line\n" if $DUMP_PSDATA_FILE;
+
             next PROCESS;
         }
 
         # ignore ourselves
         next PROCESS if $fields{'pid'} == $$ or $fields{'ppid'} == $$;
+
+        # if we get here, save for dumping if necessary
+        $psdump .= "$line\n" if $DUMP_PSDATA_FILE;
 
         # run the eval
         my $ok;
@@ -272,8 +299,30 @@ sub select_ps_lines {
         }
     }
 
+    _dump_ps_output($psdump, \@keywords) if $DUMP_PSDATA_FILE;
+
     push @selected, \%lengths; # being lazy
     return(@selected);
+}
+
+
+# save off a dump of ps(1) output for testing
+sub _dump_ps_output {
+    my $psdata = shift;
+    my $kwref  = shift;
+
+    my $pscmd  = "ps ax -o" . join(',', @{$kwref});
+
+    use Config;
+    my $osname = $Config{osname};
+    my $osvers = $Config{osvers};
+
+    open my $dumpfh, '>', $DUMP_PSDATA_FILE
+        or die "cannot open debug file $DUMP_PSDATA_FILE, $!\n";
+    print $dumpfh "# Output of '$pscmd' on ${osname}_${osvers}\n";
+    print $dumpfh "# " . localtime(time) . "\n";
+    print $dumpfh $psdata;
+    close $dumpfh or die "could not write debug file $DUMP_PSDATA_FILE, $!\n";
 }
 
 

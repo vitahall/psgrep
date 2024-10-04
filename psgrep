@@ -33,9 +33,10 @@ GetOptions(
     'D'             => \$DEBUG,
     'test-psdata=s' => \$DEBUG_PSDATA_FILE,
     'dump-psdata=s' => \$DUMP_PSDATA_FILE,
-) or pod2usage(-verbose => 1);
+) or pod2usage(-verbose => 1, -exitval => 64);
 
-pod2usage(-verbose => $help_level) if $help_level;
+# user asked for --help or --man
+pod2usage(-verbose => $help_level, -exitval => 0) if $help_level;
 
 my @LONG_KEYWORDS = qw/uid pid ppid stat tty time command/;
 
@@ -72,10 +73,36 @@ sub max {
 }
 
 
+sub errdie ($;$) {
+    my $errstr = shift;
+    my $xv     = shift;
+
+    my $EX_GENERIC = 3;
+
+    # extract the exit status if someone didn't do it for us
+    $? = $? >> 8 if $? > 0xFF;
+    $? = $EX_GENERIC if $? == 1;
+
+    no warnings;
+    chomp $errstr;
+    print STDERR "psgrep: $errstr\n";
+
+    if ($errstr =~ /can.*?t understand/) {
+        $xv ||= 64;
+    }
+
+    $xv = $xv || $? || $EX_GENERIC;
+    exit $xv;
+}
+
 # get our operations
 sub main {
     my @ops = get_ops_from_args(@ARGV);
-    pod2usage("error: no arguments") unless @ops;
+    pod2usage(
+        -message => "psgrep: no arguments",
+        -verbose => 1,
+        -exitval => 64,
+    ) unless @ops;
 
     my @keywords = map { $_->[0] } @ops;
 
@@ -88,8 +115,10 @@ sub main {
     my $lengths_ref = pop(@processes);   # pop the lengths off the end
     my $headers_ref = shift(@processes); # and the headers off the front
 
-    # exit if there are no actual processes
-    exit 0 unless scalar(@processes);
+    # exit false if there are no found processes
+    # IMPORTANT - this is the only place we should exit 1,
+    # because exit value 1 means "no errors, but we found no matching value"
+    exit 1 unless scalar(@processes);
 
     # build a format string
     if ($PID_ONLY) {
@@ -162,19 +191,18 @@ sub get_ops_from_args {
 
             # check for reversed match ops
             if ($rest =~ /~[=!]/) {
-                die "psgrep: can't understand '$rest'"
-                  . " (you might have your =~ or !~ turned around)\n";
+                errdie "can't understand '$rest'"
+                     . " (you might have your =~ or !~ turned around)";
             }
 
             push @ops, [ $keyword, $rest ];
         }
         else {
             if (($arg =~ /^$COMPARISON_OPS/o) or ($arg !~ /\s/)) {
-                die "psgrep: can't understand $arg"
-                  . " (perhaps you need quotes?)\n";
+                errdie "can't understand $arg (perhaps you need quotes?)";
             }
             else {
-                die "psgrep: can't understand $arg\n";
+                errdie "can't understand $arg";
             }
         }
     }
@@ -190,7 +218,7 @@ sub run_ps {
     if ($DEBUG_PSDATA_FILE) {
         # use ps output from file, for testing and debugging
         open my $fh, '<', $DEBUG_PSDATA_FILE
-            or die "psgrep: can't open $DEBUG_PSDATA_FILE, $!\n";
+            or errdie "can't open $DEBUG_PSDATA_FILE ($!)", 66; # EX_NOINPUT
         @lines = grep { $_ !~ /^#/ } (<$fh>);
         close $fh;
     }
@@ -199,10 +227,22 @@ sub run_ps {
         my $kw_str = join(',', @keywords);
 
         warn "PS: ps ax -o${kw_str}\n\n" if $DEBUG;
+
         open my $ps_fh, '-|', "ps", "ax", "-o${kw_str}"
-            or die "psgrep: can't run ps, exiting\n";
+            or errdie "can't run ps ($!)", $?;
         @lines = (<$ps_fh>);
-        close $ps_fh;
+
+        close $ps_fh or do {
+            # handle ps not running properly
+            $? = $? >> 8;
+            if ($!) {
+                errdie "error writing to ps ($!)", $?;
+            }
+            else {
+                # EX_DATAERR, because ps probably died from bad input
+                errdie "ps died with error $?", 65;
+            }
+        };
     }
     return @lines;
 }
@@ -319,7 +359,7 @@ sub select_ps_lines {
         }
         else {
             if ($@) {
-                die "psgrep: perl error (line $line_num): $@";
+                errdie "psgrep: perl error (line $line_num): $@", 65; # EX_DATAERR
             }
         }
     }
@@ -343,11 +383,11 @@ sub _dump_ps_output {
     my $osvers = $Config{osvers};
 
     open my $dumpfh, '>', $DUMP_PSDATA_FILE
-        or die "cannot open debug file $DUMP_PSDATA_FILE, $!\n";
+        or errdie "cannot open debug file $DUMP_PSDATA_FILE for writing, $!", 73;
     print $dumpfh "# Output of '$pscmd' on ${osname}_${osvers}\n";
     print $dumpfh "# " . localtime(time) . "\n";
     print $dumpfh $psdata;
-    close $dumpfh or die "could not write debug file $DUMP_PSDATA_FILE, $!\n";
+    close $dumpfh or errdie "could not write debug file $DUMP_PSDATA_FILE, $!", 69;
 }
 
 
@@ -396,6 +436,8 @@ sub print_formatted {
     printf $format_str, @process{@keywords};
 }
 
+
+END { warn "EXIT VALUE: $?\n" if $DEBUG }
 
 
 main();
@@ -549,6 +591,14 @@ Note that you'll typically have to quote the use of brackets from your
 shell, since they're used in shell globbing syntax. Strictly speaking,
 you don't have to quote constructs that don't interfere
 with shell syntax, but it's often a good idea.
+
+=head1 EXIT STATUS
+
+The exit status for B<psgrep> is as follows:
+
+    0    One or more processes matched the given criteria
+    1    No processes matched the given criteria
+    >1   An error occurred
 
 =head1 DIAGNOSTICS
 
